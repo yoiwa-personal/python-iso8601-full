@@ -163,6 +163,7 @@ def parse_date_to_start_duration(s, digits_year_ext=4):
         raise AssertionError("should not happen: unknown type")
 
 class dateWithPrecision(date):
+    __slots__ = ("precision",)
     def __new__(self, d, p):
         o = super(dateWithPrecision, self).__new__(self, d.year, d.month, d.day)
         o.precision = p
@@ -280,6 +281,7 @@ def parse_time_to_start_prec(s, leapsecond=0):
     return time_tuple_to_start_prec(t, leapsecond=leapsecond)
 
 class timeWithPrecision(time):
+    __slots__ = ("precision", "delta")
     def __new__(self, t, delta, precision):
         o = super(timeWithPrecision, self).__new__(self, t.hour, t.minute, t.second, t.microsecond, tzinfo=t.tzinfo)
         o.delta = delta
@@ -320,9 +322,10 @@ def parse_ISO8601_time(s, leapsecond=0, with_delta=False):
             raise ValueError("time overflow (24:00:00)")
     return timeWithPrecision(t, delta, precision)
 
-datetime_sep_regexp = re.compile(r'\A(.+?)([Tt](.+))?\Z')
+datetime_sep_regexp = re.compile(r'\A(.+?)([Tt](.+))\Z')
 
 class datetimeWithPrecision(datetime):
+    __slots__ = ("precision",)
     def __new__(self, dt, prec):
         o = super(datetimeWithPrecision, self).__new__(self, dt.year, dt.month, dt.day,
                             dt.hour, dt.minute, dt.second, dt.microsecond,
