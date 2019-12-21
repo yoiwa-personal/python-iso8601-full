@@ -1,7 +1,7 @@
 # -*- python -*-
-# Handling ISO 8601:2019 datetime string.
+# Handling full ISO 8601:2019 datetime string.
 #
-# https://github.com/yoiwa-personal/python-iso8601/
+# https://github.com/yoiwa-personal/python-iso8601-full/
 #
 # Copyright 2019 Yutaka OIWA <yutaka@oiwa.jp>.
 #
@@ -23,6 +23,34 @@
 # See also rfc3339.py for simple, commonly-used subset of this format.
 # It is licensed with CC0 (dedicated to public domain).
 
+"""Parse complex date/time representation strings formatted according
+to ISO 8601:2019.
+
+It accepts all format of date/time specifications defined in the ISO
+standard, for example:
+
+   * An usual day-of month:  2019-12-12 or 20191212
+   * A day-of-year notation: 2019-346   or 2019346
+   * A day-of-week notation: 2019-W50-4 or 2019W504
+   * Abbreviated period of days: 2019-12, 2019, 20 etc.
+   * Extended notion of years: +002019-12-12 , -0004-12-25
+
+   * A sub-second time notation: 12:34:56.78 or 123456.78
+   * Abbreviated period of times: 12, 12:34
+   * Those with sub-unit fractions: 12.5, 12:34.5678
+   * Variable decimal fraction signs: 12:34:56,78
+
+   * Combined date/time notations: 2019-12-12T12:34.5
+
+   * Timezone designations: 2019-12-12T12:34.5+09, 20191212T123430+0900
+
+Provided functions are 'parse_iso8601_date', 'parse_iso8601_time',
+'parse_iso8601_datetime'.
+
+Note: It does not accept obsolete formats (e.g. 2-digit year like 19-12-12)
+defined in ISO 8601:1999.
+"""
+
 __all__ = ['parse_iso8601_date', 'parse_iso8601_time', 'parse_iso8601_datetime']
 
 import re
@@ -32,6 +60,7 @@ try:
     _timezone_utc = timezone.utc
 except ImportError:
     from rfc3339 import timezone, _timezone_utc
+    # In python 2.7, depending to rfc3339 module
 
 import datetime as datetime_
 from datetime import datetime, date, time, timedelta
@@ -133,7 +162,15 @@ def parse_date_to_start_duration(s, digits_year_ext=4):
     else:
         raise AssertionError("should not happen: unknown type")
 
-class parse_iso8601_date(date):
+class dateWithPrecision(date):
+    def __new__(self, d, p):
+        o = super(dateWithPrecision, self).__new__(self, d.year, d.month, d.day)
+        o.precision = p
+        return o
+    def __init__(self, d, p):
+        pass
+
+def parse_iso8601_date(s, digits_year_ext=4):
     """Parse a date string formatted in ISO 8601 syntax.
 
     An optional argument digits_year_ext specifies how many digits
@@ -145,13 +182,8 @@ class parse_iso8601_date(date):
     dates..
 
     """
-    def __new__(self, s, digits_year_ext=4):
-        d, p = parse_date_to_start_duration(s, digits_year_ext=digits_year_ext)
-        o = super().__new__(self, d.year, d.month, d.day)
-        o.precision = p
-        return o
-    def __init__(self, s, digits_year_ext=4):
-        pass
+    d, p = parse_date_to_start_duration(s, digits_year_ext=digits_year_ext)
+    return dateWithPrecision(d, p)
 
 time_regexp = re.compile(
            r'''(?x)\A(?P<H>\d\d)
@@ -247,7 +279,16 @@ def parse_time_to_start_prec(s, leapsecond=0):
     t = parse_time_to_tuple(s)
     return time_tuple_to_start_prec(t, leapsecond=leapsecond)
 
-class parse_iso8601_time(time):
+class timeWithPrecision(time):
+    def __new__(self, t, delta, precision):
+        o = super(timeWithPrecision, self).__new__(self, t.hour, t.minute, t.second, t.microsecond, tzinfo=t.tzinfo)
+        o.delta = delta
+        o.precision = precision
+        return o
+    def __init__(self, t, delta, precision):
+        pass
+
+def parse_iso8601_time(s, leapsecond=0, with_delta=False):
     """Parse a time-in-day string formatted in ISO 8601 syntax.
 
     An optional argument leapsecond specifies how the 60th second is
@@ -273,19 +314,24 @@ class parse_iso8601_time(time):
       precision: a `timedelta` object representing a width of thte
                  timerange specified in the input.
     """
-    def __new__(self, s, leapsecond=0, with_delta=False):
-        t, delta, duration = parse_time_to_start_prec(s, leapsecond=leapsecond)
-        o = super().__new__(self, t.hour, t.minute, t.second, t.microsecond, tzinfo=t.tzinfo)
-        o.delta = delta
-        o.precision = duration
-        return o
-
-    def __init__(self, s, leapsecond=0, with_delta=False):
-        if not with_delta:
-            if self.delta != _zerodelta:
-                raise ValueError("time overflow (24:00:00)")
+    t, delta, precision = parse_time_to_start_prec(s, leapsecond=leapsecond)
+    if not with_delta:
+        if delta != _zerodelta:
+            raise ValueError("time overflow (24:00:00)")
+    return timeWithPrecision(t, delta, precision)
 
 datetime_sep_regexp = re.compile(r'\A(.+?)([Tt](.+))?\Z')
+
+class datetimeWithPrecision(datetime):
+    def __new__(self, dt, prec):
+        o = super(datetimeWithPrecision, self).__new__(self, dt.year, dt.month, dt.day,
+                            dt.hour, dt.minute, dt.second, dt.microsecond,
+                            tzinfo=dt.tzinfo)
+        o.precision = prec
+        return o
+
+    def __init__(self, dt, prec):
+        pass
 
 # TODO: consistency of extended/normal notations between components are not checked
 def parse_iso8601_datetime(s, digits_year_ext=4, leapsecond=0):
@@ -301,13 +347,9 @@ def parse_iso8601_datetime(s, digits_year_ext=4, leapsecond=0):
       +1: the next 0th second is repeated.
       "raise": raise a Value Error.
 
-    Returned value is a pair of:
-
-       * Either an `date` or `datetime` object representing the
-         starting point of the specified time.
-
-       * A `timedelta` object representing how long or how precise the
-         specified time is.
+    Returned value is an extended `date` or `datetime` object with an
+    precision field containing a `timedelta` object representing how
+    long or how precise the specified time is.
 
     """
     match = datetime_sep_regexp.match(s)
@@ -321,6 +363,6 @@ def parse_iso8601_datetime(s, digits_year_ext=4, leapsecond=0):
         time, delta, duration = t
         date_time = datetime.combine(date, time)
         date_time += delta
-        return date_time, duration
+        return datetimeWithPrecision(date_time, duration)
     else:
-        return parse_date_to_start_duration(s, digits_year_ext=digits_year_ext)
+        return parse_iso8601_date(s, digits_year_ext=digits_year_ext)

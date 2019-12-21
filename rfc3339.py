@@ -1,7 +1,7 @@
 # -*- python -*-
 # Handling RFC 3339 datetime string.
 #
-# a part of https://github.com/yoiwa-personal/python-iso8601/
+# A part of https://github.com/yoiwa-personal/python-iso8601-full/
 #
 # Written in 2019 by Yutaka OIWA <yutaka@oiwa.jp>.
 #
@@ -14,6 +14,13 @@
 # You may obtain a copy of the legal code of the dedication at
 #
 #     http://creativecommons.org/publicdomain/zero/1.0/
+
+"""Parse date/time representation strings formatted according
+to RFC 3339, which is a compact subset of ISO 8601:2019.
+
+A provided function is 'parse_RFC3339_datetime'.
+
+"""
 
 RFC3339_datetime_regexp=r'\A(\d\d\d\d)-(\d\d)-(\d\d)(?:[Tt](\d\d):(\d\d):(\d\d)(?:\.(\d+))?(|[Zz]|([-+])(\d\d):(\d\d)))?\Z'
 
@@ -68,16 +75,14 @@ def parse_RFC3339_datetime(s, leapsecond=0):
     # RFC 3339's datestring.  Differences are:
 
     #   - RFC 3339 allows arbitrary precision of second fractions.
-    #     Python's fromisoformat() only either 3 or 6 digits.
-
+    #     Python's fromisoformat() only accepts either 3 or 6 digits.
     #     Over-specified nanoseconds will be rounded down.
 
     #   - RFC 3339 allows to specify the 60th second.
     #     Python (and POSIX) assumes no leap seconds (it's OK, but)
     #     and rejects the 60th second from being specified.
-
     #     When a leap second is actually specified, we need to hide it
-    #     in SOME way.  The default choice satisfies two important
+    #     in some way.  The default choice satisfies two important
     #     properties:
 
     #      (1) The conversion is (non-strictly) monotonically

@@ -83,6 +83,8 @@ def test_datetime1():
          "2019-12-12T23:59:60Z",     
     ]
     for s in l:
-        print(s, [str(s) for s in parse_iso8601_datetime(s)])
+        print(s, str(parse_iso8601_datetime(s)))
 
+test_dates()
+test_times()
 test_datetime1()
