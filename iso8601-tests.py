@@ -2,8 +2,8 @@
 # Handling ISO 8601:2019 datetime string.
 # TESTS
 
-from iso8601 import (parse_date_to_tuple, parse_iso8601_date,
-                     parse_iso8601_time, parse_iso8601_datetime)
+from iso8601 import (parse_date_to_tuple, parse_ISO8601_date,
+                     parse_ISO8601_time, parse_ISO8601_datetime)
 
 def test_dates():
     l = ["20191212",
@@ -37,10 +37,10 @@ def test_dates():
     ]
 
     for s in l:
-        print(s, parse_date_to_tuple(s), parse_iso8601_date(s))
+        print(s, parse_date_to_tuple(s), parse_ISO8601_date(s))
     for s in l:
         if s.startswith("+"):
-            print(s, parse_iso8601_date(s, digits_year_ext=5))
+            print(s, parse_ISO8601_date(s, digits_year_ext=5))
 
 def test_times():
     l = ["12:34:56",
@@ -56,7 +56,7 @@ def test_times():
     ]
 
     for s in l:
-        print(s, parse_iso8601_time(s, with_delta=True))
+        print(s, parse_ISO8601_time(s, with_delta=True))
 
 def test_datetime1():
     l = [
@@ -83,7 +83,7 @@ def test_datetime1():
          "2019-12-12T23:59:60Z",     
     ]
     for s in l:
-        print(s, str(parse_iso8601_datetime(s)))
+        print(s, str(parse_ISO8601_datetime(s)))
 
 test_dates()
 test_times()

@@ -44,14 +44,14 @@ standard, for example:
 
    * Timezone designations: 2019-12-12T12:34.5+09, 20191212T123430+0900
 
-Provided functions are 'parse_iso8601_date', 'parse_iso8601_time',
-'parse_iso8601_datetime'.
+Provided functions are 'parse_ISO8601_date', 'parse_ISO8601_time',
+'parse_ISO8601_datetime'.
 
 Note: It does not accept obsolete formats (e.g. 2-digit year like 19-12-12)
 defined in ISO 8601:1999.
 """
 
-__all__ = ['parse_iso8601_date', 'parse_iso8601_time', 'parse_iso8601_datetime']
+__all__ = ['parse_ISO8601_date', 'parse_ISO8601_time', 'parse_ISO8601_datetime']
 
 import re
 
@@ -170,7 +170,7 @@ class dateWithPrecision(date):
     def __init__(self, d, p):
         pass
 
-def parse_iso8601_date(s, digits_year_ext=4):
+def parse_ISO8601_date(s, digits_year_ext=4):
     """Parse a date string formatted in ISO 8601 syntax.
 
     An optional argument digits_year_ext specifies how many digits
@@ -288,7 +288,7 @@ class timeWithPrecision(time):
     def __init__(self, t, delta, precision):
         pass
 
-def parse_iso8601_time(s, leapsecond=0, with_delta=False):
+def parse_ISO8601_time(s, leapsecond=0, with_delta=False):
     """Parse a time-in-day string formatted in ISO 8601 syntax.
 
     An optional argument leapsecond specifies how the 60th second is
@@ -334,7 +334,7 @@ class datetimeWithPrecision(datetime):
         pass
 
 # TODO: consistency of extended/normal notations between components are not checked
-def parse_iso8601_datetime(s, digits_year_ext=4, leapsecond=0):
+def parse_ISO8601_datetime(s, digits_year_ext=4, leapsecond=0):
     """Parse a date string formatted in ISO 8601 syntax.
 
     An optional argument digits_year_ext specifies how many digits
@@ -365,4 +365,4 @@ def parse_iso8601_datetime(s, digits_year_ext=4, leapsecond=0):
         date_time += delta
         return datetimeWithPrecision(date_time, duration)
     else:
-        return parse_iso8601_date(s, digits_year_ext=digits_year_ext)
+        return parse_ISO8601_date(s, digits_year_ext=digits_year_ext)
