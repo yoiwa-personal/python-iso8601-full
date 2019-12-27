@@ -23,50 +23,70 @@
 # See also rfc3339.py for simple, commonly-used subset of this format.
 # It is licensed with CC0 (dedicated to public domain).
 
-"""Parse complex date/time representation strings formatted according
-to ISO 8601:2019.
+"""Handling full ISO 8601:2019 datetime string.
+
+The module parses complex date/time representation strings formatted
+according to ISO 8601:2019.
 
 It accepts all format of date/time specifications defined in the ISO
 standard, for example:
 
-   * An usual day-of month:  2019-12-12 or 20191212
-   * A day-of-year notation: 2019-346   or 2019346
-   * A day-of-week notation: 2019-W50-4 or 2019W504
-   * Abbreviated period of days: 2019-12, 2019, 20 etc.
-   * Extended notion of years: +002019-12-12 , -0004-12-25
+   * An usual day-of month:        2019-12-12 or 20191212
+   * A day-of-year notation:       2019-346   or 2019346
+   * A day-of-week notation:       2019-W50-4 or 2019W504
+   * Abbreviated period of days:   2019-12, 2019, 20 etc.
+   * Extended notion of years:     +002019-12-12, -0004-12-25
 
-   * A sub-second time notation: 12:34:56.78 or 123456.78
-   * Abbreviated period of times: 12, 12:34
+   * A sub-second time notation:    12:34:56.78 or 123456.78
+   * Abbreviated period of times:   12, 12:34
    * Those with sub-unit fractions: 12.5, 12:34.5678
-   * Variable decimal fraction signs: 12:34:56,78
+   * Variable decimal separator:    12:34:56,78
 
-   * Combined date/time notations: 2019-12-12T12:34.5
+   * Combined date-time: 2019-12-12T12:34.5
 
-   * Timezone designations: 2019-12-12T12:34.5+09, 20191212T123430+0900
+   * Timezone offsets: 2019-12-12T12:34.5+09, 20191212T123430+0900
 
 Provided functions are 'parse_ISO8601_date', 'parse_ISO8601_time',
 'parse_ISO8601_datetime'.
 
-Note: It does not accept obsolete formats (e.g. 2-digit year like 19-12-12)
-defined in ISO 8601:1999.
+Note: It does not accept obsolete formats (e.g. 2-digit year like
+19-12-12 or 191212) defined in ISO 8601:1999.
+
 """
 
+__author__ = 'Yutaka OIWA <yutaka@oiwa.jp>'
 __all__ = ['parse_ISO8601_date', 'parse_ISO8601_time', 'parse_ISO8601_datetime']
 
 import re
+
+import datetime as datetime_
+from datetime import timedelta
+_zerodelta = timedelta(0)
+_single_sec = timedelta(seconds=1)
+_single_day = timedelta(days=1)
 
 try:
     from datetime import timezone
     _timezone_utc = timezone.utc
 except ImportError:
-    from rfc3339 import timezone, _timezone_utc
-    # In python 2.7, depending to rfc3339 module
+    class timezone(datetime_.tzinfo):
+        def __init__(self, ofs):
+            self.__offset = ofs
+            self.__name = self._compute_name(ofs)
+        def utcoffset(self, dt): return self.__offset
+        def tzname(self, dt): return self.__name
+        def dst(self, dt): return _zerodelta
+        @classmethod
+        def _compute_name(self, ofs):
+            # minimal implementation!
+            sg, s = 1, ofs.seconds + ofs.days * 86400
+            if s < 0: (sg, s) = (-1, -s) # needed for -03:30 timezone
+            s //= 60
+            h, m = (s // 60, s % 60)
+            return "UTC%+03d:%02d" % (h * sg, m)
+    _timezone_utc = timezone(_zerodelta)
 
-import datetime as datetime_
-from datetime import datetime, date, time, timedelta
-_zerodelta = timedelta(0)
-_single_sec = timedelta(seconds=1)
-_single_day = timedelta(days=1)
+from datetime import datetime, date, time
 
 datepart = (r"""(?x)
                 (?:(?P<EXT>-?)
@@ -175,12 +195,13 @@ def parse_ISO8601_date(s, digits_year_ext=4):
     """Parse a date string formatted in ISO 8601 syntax.
 
     An optional argument digits_year_ext specifies how many digits
-    are expected for the extended year specification (prefixed by + or -).
+    are expected for the extended year specification (prefixed by
+    `+` or `-`).
 
     Returned value is an extended `date` object pointing to the start
-    day of the input.  An additional property precision is set to a
-    `timedelta` object specifying a duration of the specified calendar
-    dates..
+    day of the input.  An additional property `precision` is set to a
+    `timedelta` object specifying a length of the specified calendar
+    date period.
 
     """
     d, p = parse_date_to_start_duration(s, digits_year_ext=digits_year_ext)
@@ -233,28 +254,33 @@ def parse_time_to_tuple(s):
 
 def time_tuple_to_start_prec(t, leapsecond=0):
     (type, hour, minute, second, numer, denom, scale, tz) = t
-    duration = timedelta(microseconds = 1000000.0 / denom * scale);
+    duration = timedelta(microseconds = 1000000.0 / denom * scale)
     if duration == _zerodelta: duration = timedelta.resolution
     if (hour == 24):
         if minute == second == numer == 0:
-            return(time(23, 59, 59), _single_sec, duration)
+            return(time(23, 59, 59), _single_sec, None, duration)
     if (hour < 0 or minute < 0 or second < 0
         or hour >= 24 or minute >= 60 or second > 60 or
         numer < 0 or numer >= denom or denom < 0 or scale <= 0):
         raise ValueError
     delta = _zerodelta
+    leap = None
+    microsecond = 1000000 * numer * scale // denom
     if second == 60: # leap second
+        if scale != 1 or microsecond >= 1000000:
+            raise AssertionError("not happen")
         if leapsecond == -1:
             second = 59
+            leap = _single_sec
         elif leapsecond == 0:
-            numer = 0
+            leap = timedelta(microseconds=microsecond)
+            microsecond = 0
         elif leapsecond == 1:
-            pass
+            leap = _zerodelta
         else:
             raise LeapSecondValueError
 
     # adjust for fraction
-    microsecond = 1000000 * numer * scale // denom
     if microsecond >= 1000000:
         second += microsecond // 1000000
         microsecond = microsecond % 1000000
@@ -274,66 +300,95 @@ def time_tuple_to_start_prec(t, leapsecond=0):
         second = 59
 
     t = time(hour, minute, second, microsecond, tzinfo=tz)
-    return (t, delta, duration)
+    return (t, delta, leap, duration)
 
 def parse_time_to_start_prec(s, leapsecond=0):
     t = parse_time_to_tuple(s)
     return time_tuple_to_start_prec(t, leapsecond=leapsecond)
 
 class timeWithPrecision(time):
-    __slots__ = ("precision", "delta")
-    def __new__(self, t, delta, precision):
+    __slots__ = ("precision", "leap", "delta")
+    def __new__(self, t, delta, leap, precision):
         o = super(timeWithPrecision, self).__new__(self, t.hour, t.minute, t.second, t.microsecond, tzinfo=t.tzinfo)
         o.delta = delta
+        o.leap = leap
         o.precision = precision
         return o
-    def __init__(self, t, delta, precision):
+    def __init__(self, t, delta, leap, precision):
         pass
 
 def parse_ISO8601_time(s, leapsecond=0, with_delta=False):
     """Parse a time-in-day string formatted in ISO 8601 syntax.
 
-    An optional argument leapsecond specifies how the 60th second is
-    treated:
-      -1: the preceeding 59th second is repeated.
-       0: the clock holds at the top of the next 0th second.
-      +1: the next 0th second is repeated.
-      "raise": raise a Value Error.
+    Optional named arguments are as follows:
 
-    Returned value is an `time` object by default with the following
-    properties.
+      with_delta: a boolean whether a returned value can be offseted,
+                  using a special property `delta` described below, to
+                  represent time values above 24:00:00, which are not
+                  normally allowed by the Python's `time` object.
+
+                  See also property `delta` described below.
+
+      leapsecond: specifies how the 60th second is to be treated:
+          -1: the preceeding 59th second is repeated.
+           0: the clock holds at the top of the next 0th second.
+          +1: the next 0th second is repeated.
+          "raise": raise a Value Error.
+
+          The argument `with_delta` should also be set to true
+          to handle "23:59:60", unless `leapsecond` is set to -1.
+
+    Returned value is an `time` object with the following additional
+    properties:
 
       delta: If with_delta is set to True, it is a `timedelta` object
-             representing an extra duration overflown from the allowed
-             time range.  
+             representing an extra offset overflowed from the allowed
+             time range.
 
              It might happen when either "24:00:00" or "23:59:60.xxx"
              is specified.
 
-             If with_delta is False (default), a ValueError is raised
-             for such cases.
+             If with_delta is False (default), this property is fixed
+             to `timedelta(0)`, and ValueError is raised for any
+             overflow cases.
 
-      precision: a `timedelta` object representing a width of thte
-                 timerange specified in the input.
+      leap: It is set to None if 60th second is not specified.
+
+            If a 60th second is input, the property is set to a
+            `timedelta` object representing the time reduced by the
+            handling of the leap second.  (delta offset shall be
+            considered before using this.)
+
+            Be careful that the value might be 0 sec, which is treated
+            as a false value in boolean contexts.
+
+      precision: a `timedelta` object representing a width of the
+                 time-range specified in the input.
+                 It might be either an hour, a minute or a second
+                 divided by any power of ten.
+
     """
-    t, delta, precision = parse_time_to_start_prec(s, leapsecond=leapsecond)
+    t, delta, leap, precision = parse_time_to_start_prec(s, leapsecond=leapsecond)
     if not with_delta:
         if delta != _zerodelta:
             raise ValueError("time overflow (24:00:00)")
-    return timeWithPrecision(t, delta, precision)
+    return timeWithPrecision(t, delta, leap, precision)
 
 datetime_sep_regexp = re.compile(r'\A(.+?)([Tt](.+))\Z')
 
 class datetimeWithPrecision(datetime):
-    __slots__ = ("precision",)
-    def __new__(self, dt, prec):
-        o = super(datetimeWithPrecision, self).__new__(self, dt.year, dt.month, dt.day,
-                            dt.hour, dt.minute, dt.second, dt.microsecond,
-                            tzinfo=dt.tzinfo)
+    __slots__ = ("leap", "precision",)
+    def __new__(self, dt, leap, prec):
+        o = super(datetimeWithPrecision, self).__new__(
+                self,
+                dt.year, dt.month, dt.day,
+                dt.hour, dt.minute, dt.second, dt.microsecond,
+                tzinfo=dt.tzinfo)
+        o.leap = leap
         o.precision = prec
         return o
 
-    def __init__(self, dt, prec):
+    def __init__(self, dt, leap, prec):
         pass
 
 # TODO: consistency of extended/normal notations between components are not checked
@@ -341,7 +396,8 @@ def parse_ISO8601_datetime(s, digits_year_ext=4, leapsecond=0):
     """Parse a date string formatted in ISO 8601 syntax.
 
     An optional argument digits_year_ext specifies how many digits
-    are expected for the extended year specification (prefixed by + or -).
+    are expected for the extended year specification (prefixed by
+    `+` or `-`).
 
     An optional argument leapsecond specifies how the 60th second is
     treated:
@@ -350,22 +406,28 @@ def parse_ISO8601_datetime(s, digits_year_ext=4, leapsecond=0):
       +1: the next 0th second is repeated.
       "raise": raise a Value Error.
 
-    Returned value is an extended `date` or `datetime` object with an
-    precision field containing a `timedelta` object representing how
-    long or how precise the specified time is.
+    Returned value is either a `date` or `datetime` object, with the
+    following properties:
+
+      precision: a `timedelta` object representing a width of thte
+                 timerange specified in the input.
+
+      leap: the field is only avaiable if time-part is specified.
+            Either `None` if leap second is not specified, or a
+            `timedelta` object (might be 0-time) representing a time
+            duration rounded by the treatment of the 60th second.
 
     """
     match = datetime_sep_regexp.match(s)
     if match:
-        d = parse_date_to_start_duration(match.group(1), digits_year_ext=digits_year_ext)
-        date, duration = d
+        date, duration = parse_date_to_start_duration(match.group(1), digits_year_ext=digits_year_ext)
         if duration > _single_day:
             raise ValueError("not-a-single-day date with a specific time")
         t = parse_time_to_start_prec(match.group(3), leapsecond=leapsecond)
         if not t: return t
-        time, delta, duration = t
+        time, delta, leap, duration = t
         date_time = datetime.combine(date, time)
         date_time += delta
-        return datetimeWithPrecision(date_time, duration)
+        return datetimeWithPrecision(date_time, leap, duration)
     else:
         return parse_ISO8601_date(s, digits_year_ext=digits_year_ext)

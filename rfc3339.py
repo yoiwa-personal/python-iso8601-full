@@ -15,12 +15,16 @@
 #
 #     http://creativecommons.org/publicdomain/zero/1.0/
 
-"""Parse date/time representation strings formatted according
+"""Handling RFC 3339 datetime string.
+
+The module parses date/time representation strings formatted according
 to RFC 3339, which is a compact subset of ISO 8601:2019.
 
-A provided function is 'parse_RFC3339_datetime'.
-
+It provides the function 'parse_RFC3339_datetime'.
 """
+
+__author__ = 'Yutaka OIWA <yutaka@oiwa.jp>'
+__all__ = ['parse_RFC3339_datetime']
 
 RFC3339_datetime_regexp=r'\A(\d\d\d\d)-(\d\d)-(\d\d)(?:[Tt](\d\d):(\d\d):(\d\d)(?:\.(\d+))?(|[Zz]|([-+])(\d\d):(\d\d)))?\Z'
 
@@ -59,7 +63,7 @@ class LeapSecondValueError(ValueError):
 def parse_RFC3339_datetime(s, leapsecond=0):
     """Parse RFC3339 date-time string.
 
-    Returns either datetime.date or datetime.datetime instance,
+    Returns either a datetime.date or a datetime.datetime instance,
     depending on the input string (whether it contains a time part).
 
     Optional argument "leapsecond" specifies how the "60th second" 
@@ -70,33 +74,6 @@ def parse_RFC3339_datetime(s, leapsecond=0):
       -  1: duplicates the next 0th second (12:00:00.5).
       - "raise": raises a ValueError.
     """
-
-    # Python 3.7's datetime.datetime.fromisoformat() almost works for
-    # RFC 3339's datestring.  Differences are:
-
-    #   - RFC 3339 allows arbitrary precision of second fractions.
-    #     Python's fromisoformat() only accepts either 3 or 6 digits.
-    #     Over-specified nanoseconds will be rounded down.
-
-    #   - RFC 3339 allows to specify the 60th second.
-    #     Python (and POSIX) assumes no leap seconds (it's OK, but)
-    #     and rejects the 60th second from being specified.
-    #     When a leap second is actually specified, we need to hide it
-    #     in some way.  The default choice satisfies two important
-    #     properties:
-
-    #      (1) The conversion is (non-strictly) monotonically
-    #          increasing.
-
-    #      (2) The duration from 00:00 to 23:59:60 has exactly 86400
-    #          seconds, which is another way of exploiting the "60th
-    #          second" notation.
-
-    #     However, it looses local "strictly increasing" behavior of
-    #     fractional seconds.
-
-    # It does not check whether the leap second is actually existing
-    # on the earth or not.
 
     match = re.match(RFC3339_datetime_regexp, s)
     if not match:
@@ -113,7 +90,7 @@ def parse_RFC3339_datetime(s, leapsecond=0):
         if tzsign == '-': tzofs = -tzofs
         tz = timezone(tzofs)
     fraction = (fraction or "") + "0000000"
-    fraction = fraction[0:6] + "." + fraction[6:]
+    fraction = fraction[0:6] # + "." + fraction[6:]
     microsecond = int(float(fraction))
     adjust = False
     if (second == '60'):
@@ -134,3 +111,30 @@ def parse_RFC3339_datetime(s, leapsecond=0):
                  microsecond, tz)
     if adjust: r += adjust
     return r
+
+# Python 3.7's datetime.datetime.fromisoformat() almost works for
+# RFC 3339's datestring.  Differences are:
+
+#   - RFC 3339 allows arbitrary precision of second fractions.
+#     Python's fromisoformat() only accepts either 3 or 6 digits.
+#     Over-specified nanoseconds will be rounded down.
+
+#   - RFC 3339 allows to specify the 60th second.
+#     Python (and POSIX) assumes no leap seconds (it's OK, but)
+#     and rejects the 60th second from being specified.
+#     When a leap second is actually specified, we need to hide it
+#     in some way.  The default choice satisfies two important
+#     properties:
+
+#      (1) The conversion is (non-strictly) monotonically
+#          increasing.
+
+#      (2) The duration from 00:00 to 23:59:60 has exactly 86400
+#          seconds, which is another way of exploiting the "60th
+#          second" notation.
+
+#     However, it looses local "strictly increasing" behavior of
+#     fractional seconds.
+
+# It does not check whether the leap second is actually existing
+# on the earth or not.
