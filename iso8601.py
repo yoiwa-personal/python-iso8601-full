@@ -88,8 +88,7 @@ except ImportError:
 
 from datetime import datetime, date, time
 
-datepart = (r"""(?x)
-                (?:(?P<EXT>-?)
+datepart = (r"""(?x:(?P<EXT>-?)
                    (?:(?P<M>[01]\d)(?P=EXT)(?P<D>[0-3]\d)
                       |(?P<YD>[0-3]\d\d)
                       |[Ww](?P<W>[0-5]\d)(?:(?P=EXT)(?P<WD>[1-7]))?)
@@ -287,7 +286,9 @@ def time_tuple_to_start_prec(t, leapsecond=0):
     if second >= 60:
         minute += second // 60
         second = second % 60
-
+    if minute >= 60:
+        hour += minute // 60
+        minute = minute % 60
     # adjust for overflow by 24:00 or --:--:60
     if (hour >= 24):
         minute += 60 * (hour - 23)
